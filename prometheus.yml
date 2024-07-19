@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+- job_name: 'mysqld'
+  static_configs:
+  - targets: ['mysqld-exporter:9104']
+
+- job_name: 'haproxy'
+  static_configs:
+  - targets: ['haproxy-exporter:9100']
+
+- job_name: 'mysqld-slave1'
+  static_configs:
+  - targets: ['mysqld-exporter-slave1:9104']
+
+- job_name: 'mysqld-slave2'
+  static_configs:
+  - targets: ['mysqld-exporter-slave2:9104']

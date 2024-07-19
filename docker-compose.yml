@@ -1,0 +1,142 @@
+version: '3.8'
+
+services:
+  mysql-master:
+    image: mysql:8.0
+    container_name: mysql-master
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_REPLICATION_USER: shelger
+      MYSQL_REPLICATION_PASSWORD: 960418
+    volumes:
+      - ./master-data:/var/lib/mysql
+      - ./master-conf:/etc/mysql/conf.d
+    ports:
+      - "3306:3306"
+    command: >
+      --server-id=1
+      --log-bin=mysql-bin
+      --binlog-do-db=mydb
+    networks:
+      - mysql-cluster-network
+  
+  mysql-slave1:
+    image: mysql:8.0
+    container_name: mysql-slave1
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_REPLICATION_USER: shelger
+      MYSQL_REPLICATION_PASSWORD: 960418
+    volumes:
+      - ./slave1-data:/var/lib/mysql
+      - ./slave1-conf:/etc/mysql/conf.d
+    ports:
+      - "3307:3306"
+    command: >
+      --server-id=2
+      --relay-log=mysql-relay-bin
+      --log-bin=mysql-bin
+      --binlog-do-db=mydb
+      --read-only=1
+      --super-read-only=0
+    networks:
+      - mysql-cluster-network
+    
+  mysql-slave2:
+    image: mysql:8.0
+    container_name: mysql-slave2
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_REPLICATION_USER: shelger
+      MYSQL_REPLICATION_PASSWORD: 960418
+    volumes:
+      - ./slave2-data:/var/lib/mysql
+      - ./slave2-conf:/etc/mysql/conf.d
+    ports:
+      - "3308:3306"
+    command: >
+      --server-id=3
+      --relay-log=mysql-relay-bin
+      --log-bin=mysql-bin
+      --binlog-do-db=mydb
+      --read-only=1
+      --super-read-only=0
+    networks:
+      - mysql-cluster-network
+
+  haproxy:
+    image: haproxy:latest
+    container_name: haproxy
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+    ports:
+      - "3309:3309"
+      - "3310:3310"
+    networks:
+      - mysql-cluster-network
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - mysql-cluster-network
+
+  mysqld-exporter:
+    image: prom/mysqld-exporter
+    container_name: mysqld-exporter
+    environment:
+      DATA_SOURCE_NAME: 'shelger:960418@tcp(mysql-master:3306)/'
+    volumes:
+      - ./my.cnf:/.my.cnf
+    ports:
+      - "9104:9104"
+    networks:
+      - mysql-cluster-network
+
+  mysqld-exporter-slave1:
+    image: prom/mysqld-exporter
+    container_name: mysqld-exporter-slave1
+    environment:
+      DATA_SOURCE_NAME: 'shelger:960418@tcp(mysql-slave1:3306)/'
+    volumes:
+      - ./my.cnf:/.my.cnf
+    ports:
+      - "9105:9104"
+    networks:
+      - mysql-cluster-network
+
+  mysqld-exporter-slave2:
+    image: prom/mysqld-exporter
+    container_name: mysqld-exporter-slave2
+    environment:
+      DATA_SOURCE_NAME: 'shelger:960418@tcp(mysql-slave2:3306)/'
+    volumes:
+      - ./my.cnf:/.my.cnf
+    ports:
+      - "9106:9104"
+    networks:
+      - mysql-cluster-network
+
+  haproxy-exporter:
+    image: prom/node-exporter
+    container_name: haproxy-exporter
+    ports:
+      - "9103:9100"
+    networks:
+      - mysql-cluster-network
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - mysql-cluster-network
+
+networks:
+  mysql-cluster-network:
+    driver: bridge
